@@ -144,3 +144,10 @@ public/build/
 # Test files
 test-results/
 playwright-report/
+
+
+
+# Allow lockfiles for CI
+!package-lock.json
+!frontend/package-lock.json
+!backend/package-lock.json
