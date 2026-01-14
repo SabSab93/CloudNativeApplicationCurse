@@ -703,3 +703,77 @@ The deployment is designed to be **idempotent** and can be executed multiple tim
 - Docker images are always pulled from the remote registry
 - Containers are cleanly restarted on each deployment
 
+
+## 🔵🟢 Blue/Green Deployment
+
+This project implements a **Blue/Green deployment strategy** using Docker Compose and an Nginx reverse proxy.
+
+The goal is to deploy a new version of the application **without any visible downtime**, while keeping the ability to rollback instantly.
+
+---
+
+### 🧠 Principle
+
+- **Blue**: currently active version (receiving user traffic)
+- **Green**: inactive version (candidate for the next deployment)
+
+Both versions can run **at the same time**, sharing the same PostgreSQL database.
+
+---
+
+### 🌐 Role of the Reverse Proxy
+
+An **Nginx reverse proxy** is the single entry point for users:
+
+- Public URL: `http://localhost:8080`
+- Routes traffic to:
+  - `app-back-blue` **or**
+  - `app-back-green`
+
+The active version is selected via a mounted configuration file:
+
+```
+nginx/conf.d/active.conf
+```
+
+The proxy can be reloaded without restarting containers:
+
+```bash
+docker exec reverse-proxy nginx -s reload
+```
+
+---
+
+### 🚀 Deployment Flow
+
+1. Build & push Docker images via CI
+2. Deploy the new version on the inactive color (blue or green)
+3. Update proxy configuration to switch traffic
+4. Reload Nginx
+5. Rollback possible at any time by reverting the proxy config
+
+---
+
+### 🔁 Example Deployment Scenario
+
+```
+[Client] --> [Reverse Proxy] --> [Blue]   (active version)
+                             \-> [Green]  (candidate version)
+```
+
+- If **Blue** is active → deploy on **Green**
+- Once validated → switch proxy to **Green**
+- Rollback = switch proxy back to **Blue**
+
+---
+
+### ⚙️ CI/CD Integration
+
+- Docker images are built and pushed to **GitHub Container Registry (GHCR)**
+- Blue/Green deployment is handled by a dedicated deployment script
+- The Blue/Green deployment stage is executed automatically **on the `develop` branch**
+- A classic single-stack deployment is executed **on the `main` branch**
+
+This setup allows:
+- Stable deployments on `main`
+- Safe experimentation and near-instant rollback on `develop`
