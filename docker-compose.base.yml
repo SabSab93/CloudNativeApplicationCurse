@@ -29,7 +29,7 @@ services:
 
 networks:
   app-net:
-    name: app-net
+    external: true
 
 volumes:
   postgres_data:

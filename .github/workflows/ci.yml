@@ -87,9 +87,6 @@ jobs:
         working-directory: backend
         run: npm test --if-present
 
-  # ============================
-  # 🔍 SONARCLOUD (indépendant)
-  # ============================
   sonarcloud:
     name: SonarCloud Scan + Quality Gate
     runs-on: ubuntu-latest
@@ -103,6 +100,7 @@ jobs:
         uses: SonarSource/sonarcloud-github-action@v3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
       - name: SonarCloud Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
         continue-on-error: true
@@ -110,64 +108,18 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
 
-  # ============================
-  # 🐳 DOCKER / GHCR
-  # ============================
   docker:
-    name: Docker (build + run + push)
+    name: Docker (build + push)
     runs-on: self-hosted
     needs: tests
     steps:
       - uses: actions/checkout@v4
 
-      # 1) Build images
       - name: Docker build backend
         run: docker build -t backend-ci ./backend
 
       - name: Docker build frontend
         run: docker build -t frontend-ci ./frontend
-
-      # Create backend/.env for docker-compose
-      - name: Create backend .env for compose
-        run: |
-          cat > backend/.env <<EOF
-          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
-          DATABASE_URL=${{ secrets.DATABASE_URL }}
-          EOF
-
-      # 2) Run stack
-      - name: Start stack (compose)
-        run: |
-          docker compose down || true
-          docker compose up -d
-
-      - name: Backend smoke test
-        run: |
-          for i in {1..30}; do
-            if curl -fsS http://localhost:3000/health >/dev/null 2>&1; then
-              echo "Backend OK"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Backend not responding"
-          docker compose logs backend || true
-          exit 1
-
-      - name: Frontend smoke test
-        run: |
-          for i in {1..30}; do
-            if curl -fsS http://localhost:8080 >/dev/null 2>&1; then
-              echo "Frontend OK"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Frontend not responding"
-          docker compose logs frontend || true
-          exit 1
 
       - name: Login GHCR
         run: |
@@ -186,15 +138,11 @@ jobs:
           docker push ghcr.io/$OWNER_LC/cloudnative-backend:${{ github.sha }}
           docker push ghcr.io/$OWNER_LC/cloudnative-frontend:${{ github.sha }}
 
-      - name: Cleanup
-        if: always()
-        run: |
-          docker compose down || true
-          rm -f backend/.env
   deploy:
     name: Deploy (local runner)
     runs-on: self-hosted
     needs: docker
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
 
@@ -203,9 +151,8 @@ jobs:
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$OWNER_LC" --password-stdin
 
-      - name: Deploy via script (idempotent)
+      - name: Deploy via script
         env:
-          # variables attendues par scripts/deploy.sh
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
@@ -214,6 +161,32 @@ jobs:
           chmod +x scripts/deploy.sh
           bash scripts/deploy.sh
 
-      - name: Cleanup deploy
+      - name: Cleanup
         if: always()
         run: rm -f backend/.env
+
+  deploy_blue_green:
+    name: Deploy Blue/Green (local runner)
+    runs-on: self-hosted
+    needs: docker
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login GHCR
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$OWNER_LC" --password-stdin
+
+      - name: Run deployment script
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          GHCR_OWNER: ${{ github.repository_owner }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          export GHCR_OWNER="$(echo "$GHCR_OWNER" | tr '[:upper:]' '[:lower:]')"
+          chmod +x scripts/deploy-blue-green.sh
+          ./scripts/deploy-blue-green.sh
