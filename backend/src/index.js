@@ -34,11 +34,13 @@ app.get('/health', (req, res) => {
 });
 
 // Error handling middleware
-app.use((err, req, res,) => {
+app.use((err, req, res) => {
   console.error(err.stack);
   res.status(500).json({ 
     error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    message: process.env.NODE_ENV === 'development'
+      ? err.message
+      : 'Internal server error'
   });
 });
 
