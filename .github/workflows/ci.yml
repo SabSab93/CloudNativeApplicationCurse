@@ -102,3 +102,65 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+
+  docker:
+    name: Docker (build + run + push)
+    runs-on: self-hosted
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) Build images (demandé)
+      - name: Docker build backend
+        run: docker build -t backend-ci ./backend
+
+      - name: Docker build frontend
+        run: docker build -t frontend-ci ./frontend
+
+      # 2) Vérifier que les images tournent (via compose)
+      - name: Start stack (compose)
+        run: docker compose up -d
+
+      - name: Backend smoke test
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+              echo "Backend OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend not responding"
+          docker compose logs backend || true
+          exit 1
+
+      - name: Frontend smoke test
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080 >/dev/null 2>&1; then
+              echo "Frontend OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend not responding"
+          docker compose logs frontend || true
+          exit 1
+
+      # 3) Tag + push GHCR (demandé)
+      - name: Login GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Tag images
+        run: |
+          docker tag backend-ci ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
+          docker tag frontend-ci ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
+
+      - name: Push images
+        run: |
+          docker push ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
+          docker push ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
