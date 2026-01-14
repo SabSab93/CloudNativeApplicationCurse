@@ -318,3 +318,137 @@ This workflow provides:
 - Safe collaboration practices
 - A production-ready foundation for CI/CD
 
+
+## 🚀 CI Pipeline Overview
+
+This project includes a complete **Continuous Integration (CI)** pipeline executed via **GitHub Actions** on a **self-hosted runner**.
+
+### Pipeline stages:
+
+```
+Pull Request / Push
+        ↓
+      Lint
+        ↓
+      Build
+        ↓
+      Tests
+        ↓
+   SonarCloud Scan
+        ↓
+   Quality Gate
+        ↓
+   Merge allowed
+```
+
+- **Lint**: Frontend & backend code quality checks
+- **Build**: Application build validation
+- **Tests**: Backend automated tests
+- **SonarCloud**: Static analysis and technical debt detection
+- **Quality Gate**: Blocks merge if quality requirements are not met
+
+---
+
+## 🔐 Git Workflow Rules (TP1 + TP2)
+
+This repository follows strict Git and DevOps rules to ensure quality and stability.
+
+### Branch strategy
+
+- **main**: Production-ready code (protected)
+- **develop**: Integration branch (protected)
+- **feature/***: Feature development branches
+
+### Mandatory rules
+
+- No direct push on `main` or `develop`
+- All changes go through **Pull Requests**
+- CI pipeline **must pass** before merge
+- **SonarCloud Quality Gate must pass**
+
+### Commit conventions
+
+The project enforces **Conventional Commits** via **Commitlint**:
+
+```
+<type>: <short description>
+```
+
+Allowed types:
+- feat
+- fix
+- chore
+- docs
+- refactor
+- test
+
+Example:
+```
+chore: setup husky and commitlint
+```
+
+### Husky Git Hooks
+
+Husky runs automated checks before each commit:
+
+```
+npm run lint:all
+```
+
+Which executes:
+- Frontend lint
+- Backend lint
+
+---
+
+## Features
+
+### User Features
+- **User Dashboard**: View stats, billing, and recent bookings
+- **Class Booking**: Book and cancel fitness classes
+- **Subscription Management**: View subscription details and billing
+- **Profile Management**: Update personal information
+
+### Admin Features
+- **Admin Dashboard**: Overview of gym statistics and revenue
+- **User Management**: CRUD operations for users
+- **Class Management**: Create, update, and delete fitness classes
+- **Booking Management**: View and manage all bookings
+- **Subscription Management**: Manage user subscriptions
+
+### Business Logic
+- **Capacity Management**: Classes have maximum capacity limits
+- **Time Conflict Prevention**: Users cannot book overlapping classes
+- **Cancellation Policy**: 2-hour cancellation policy
+- **Billing System**: Dynamic pricing with penalties
+- **Subscription Types**: Standard (€30), Premium (€50), Student (€20)
+
+---
+
+## Tech Stack
+
+### Backend
+- Node.js (Express)
+- Prisma ORM + PostgreSQL
+- REST API
+
+### Frontend
+- Vue.js 3
+- Pinia
+- Vue Router
+
+### DevOps
+- Docker & Docker Compose
+- GitHub Actions CI
+- SonarCloud
+
+---
+
+## Summary
+
+This setup provides:
+- Automated quality checks
+- Secure collaboration workflow
+- CI-enforced code standards
+- A solid foundation for future CI/CD deployments
+
