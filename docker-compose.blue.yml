@@ -1,0 +1,15 @@
+services:
+  app-back-blue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: app-back-blue
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    external: true

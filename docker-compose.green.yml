@@ -1,0 +1,15 @@
+services:
+  app-back-green:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: app-back-green
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    external: true

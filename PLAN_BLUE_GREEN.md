@@ -134,3 +134,7 @@ Traffic is immediately restored to the previous stable version.
 - Reverse proxy is isolated from application logic
 - Database is shared and never restarted
 - Rollback requires only a proxy reload
+
+## Information 
+
+We use Option 1: two upstreams (blue/green) and a dynamic include file (active.conf) to select the active target. Switching is done by updating active.conf and reloading Nginx (nginx -s reload), without restarting the proxy container.
