@@ -140,7 +140,7 @@ jobs:
       # 2) Run stack
       - name: Start stack (compose)
         run: |
-          docker compose down -v || true
+          docker compose down || true
           docker compose up -d
 
       - name: Backend smoke test
@@ -169,7 +169,6 @@ jobs:
           docker compose logs frontend || true
           exit 1
 
-      # 3) Tag + push GHCR (lowercase owner via tr)
       - name: Login GHCR
         run: |
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
@@ -190,5 +189,46 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker compose down -v || true
+          docker compose down || true
           rm -f backend/.env
+  deploy:
+    name: Deploy (local runner)
+    runs-on: self-hosted
+    needs: docker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login GHCR
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$OWNER_LC" --password-stdin
+
+      - name: Stop current containers (keep volumes)
+        run: docker compose down || true
+
+      - name: Pull latest images for this commit
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker pull ghcr.io/$OWNER_LC/cloudnative-backend:${IMAGE_TAG}
+          docker pull ghcr.io/$OWNER_LC/cloudnative-frontend:${IMAGE_TAG}
+
+      # ✅ obligatoire si docker-compose.yml utilise backend/.env
+      - name: Create backend .env for compose
+        run: |
+          cat > backend/.env <<EOF
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          EOF
+
+      - name: Start environment
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: docker compose up -d
+
+      - name: Cleanup deploy
+        if: always()
+        run: rm -f backend/.env
