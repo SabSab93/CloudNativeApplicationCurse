@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [develop]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   lint:
     name: Lint (frontend + backend)
@@ -117,9 +121,21 @@ jobs:
       - name: Docker build frontend
         run: docker build -t frontend-ci ./frontend
 
-      # 2) Vérifier que les images tournent (via compose)
+      # Create an env file for compose from GitHub Secrets (avoids missing .env in repo)
+      - name: Create env file for compose
+        run: |
+          cat > .env.ci <<EOF
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          EOF
+
+      # 2) Run stack
       - name: Start stack (compose)
-        run: docker compose up -d
+        run: |
+          docker compose --env-file .env.ci down -v || true
+          docker compose --env-file .env.ci up -d
 
       - name: Backend smoke test
         run: |
@@ -149,18 +165,20 @@ jobs:
 
       # 3) Tag + push GHCR (demandé)
       - name: Login GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
 
       - name: Tag images
         run: |
-          docker tag backend-ci ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
-          docker tag frontend-ci ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
+          docker tag backend-ci ghcr.io/${{ github.repository_owner }}/cloudnative-backend:${{ github.sha }}
+          docker tag frontend-ci ghcr.io/${{ github.repository_owner }}/cloudnative-frontend:${{ github.sha }}
 
       - name: Push images
         run: |
-          docker push ghcr.io/${{ github.actor }}/cloudnative-backend:${{ github.sha }}
-          docker push ghcr.io/${{ github.actor }}/cloudnative-frontend:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/cloudnative-backend:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/cloudnative-frontend:${{ github.sha }}
 
       - name: Cleanup
         if: always()
-        run: docker compose down -v
+        run: |
+          docker compose --env-file .env.ci down -v || true
+          rm -f .env.ci
