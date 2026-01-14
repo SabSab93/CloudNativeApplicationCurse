@@ -1,0 +1,13 @@
+services:
+  app-back-blue:
+    image: ghcr.io/${GHCR_OWNER}/cloudnative-backend:${IMAGE_TAG}
+    container_name: app-back-blue
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    external: true
