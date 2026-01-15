@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env
+    environment:
+      - COLOR=green
+      - VERSION=${IMAGE_TAG}
     networks:
       - app-net
 

@@ -30,7 +30,12 @@ app.use('/api/auth', authRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    color: process.env.COLOR || 'unknown',
+    version: process.env.VERSION || 'unknown'
+  });
 });
 
 // Error handling middleware
