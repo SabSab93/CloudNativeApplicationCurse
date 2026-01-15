@@ -801,3 +801,242 @@ This setup enables:
 - Stable and controlled deployments on `main`
 - Safe experimentation and near-instant rollback on `develop`
 
+# Monitoring & Observability Stack – TP6
+
+## 📌 Overview
+
+This repository documents the implementation of a local, fully open-source monitoring and observability stack for a containerized application (Vue.js + NestJS + PostgreSQL) deployed with Docker Compose using a blue/green strategy.
+
+The goal of this work is to design, deploy, and document a professional-grade observability setup, similar to what is expected in real cloud-native environments, while remaining **100% local and reproducible**.
+
+The monitoring stack is based on:
+- **Prometheus** for metrics collection  
+- **Grafana** for visualization and dashboards  
+- **Loki** for centralized log storage  
+- **Promtail** for log shipping  
+
+---
+
+## 🎯 Learning Objectives
+
+- Understand the fundamentals of monitoring and observability  
+- Deploy a complete open-source monitoring stack locally  
+- Collect and expose application and infrastructure metrics  
+- Centralize and query application logs  
+- Build actionable Grafana dashboards  
+- Apply professional observability best practices for containerized applications  
+
+---
+
+## 🧰 Technologies Used
+
+- **Docker & Docker Compose** – container orchestration  
+- **Prometheus** – metrics scraping and storage  
+- **Grafana** – dashboards and visualization  
+- **Loki** – log aggregation backend  
+- **Promtail** – log collection agent  
+- **cAdvisor** – container-level CPU and RAM metrics  
+- **NestJS Prometheus exporter** – backend metrics exposure  
+
+---
+
+## 📦 Application Context
+
+The monitored application consists of:
+- **Frontend**: Vue.js  
+- **Backend**: NestJS (Blue/Green deployment)  
+- **Database**: PostgreSQL  
+
+Before this TP, the application had no observability:
+- No metrics  
+- No centralized logs  
+- No dashboards  
+- No visibility into performance or failures  
+
+This TP introduces a **production-like observability layer**.
+
+---
+
+## 🏗️ Architecture Overview
+
+### Metrics flow
+
+```
+NestJS (/metrics)
+        ↓
+   Prometheus
+        ↓
+     Grafana
+```
+
+### Logs flow
+
+```
+Docker stdout
+        ↓
+     Promtail
+        ↓
+       Loki
+        ↓
+     Grafana
+```
+
+---
+
+## 🚀 How to Run the Monitoring Stack
+
+### 1️⃣ Start the application stack
+
+Ensure that the application stack (frontend, backend blue/green, database) is already running.
+
+### 2️⃣ Start the monitoring stack
+
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+```
+
+### 3️⃣ Verify containers
+
+```bash
+docker compose -f docker-compose.monitoring.yml ps
+```
+
+All services must be **UP / healthy**:
+- prometheus  
+- grafana  
+- loki  
+- promtail  
+
+---
+
+## 🌐 Access URLs
+
+| Service     | URL                   |
+|------------|------------------------|
+| Grafana    | http://localhost:3000  |
+| Prometheus | http://localhost:9090  |
+| Loki       | Internal (3100)        |
+
+---
+
+## 📈 Metrics Collection
+
+### Backend Metrics
+
+The NestJS backend exposes Prometheus metrics on:
+
+```
+GET /metrics
+```
+
+Collected metrics include:
+- HTTP request count  
+- HTTP latency  
+- Error rates  
+- Application uptime  
+
+Prometheus scrapes the active backend instances:
+
+```yaml
+scrape_configs:
+  - job_name: "backend"
+    static_configs:
+      - targets:
+          - app-back-blue:3000
+          - app-back-green:3000
+```
+
+### Verification
+
+- Prometheus → **Status → Targets**  
+- Metrics visible in **Graph / Table** view  
+
+---
+
+## 📜 Log Collection
+
+### Log Source
+
+- Logs are written to **stdout** by Docker containers  
+- Promtail reads Docker container logs via the Docker socket  
+
+### Promtail Configuration (simplified)
+
+```yaml
+scrape_configs:
+  - job_name: containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+```
+
+### Verification
+
+Grafana → **Explore → Loki**
+
+Logs can be filtered by:
+- container name  
+- service  
+- log content  
+
+---
+
+## 📊 Grafana Dashboards
+
+### Dashboard 1 – Backend Metrics
+
+Implemented panels:
+- Backend uptime (UP / DOWN)  
+- HTTP requests per second  
+- Average HTTP latency  
+- HTTP errors per second (4xx / 5xx)  
+- CPU usage (container-level)  
+- RAM usage (container-level)  
+
+### Dashboard 2 – Logs & Correlation
+
+- Centralized backend logs (Loki)  
+- Error message inspection  
+- Correlation between metrics and logs  
+
+Dashboards are designed to be:
+- Readable  
+- Actionable  
+- Production-oriented  
+
+---
+
+## 📁 Project Deliverables
+
+- docker-compose.monitoring.yml  
+- prometheus.yml  
+- promtail-config.yml  
+- MONITORING.md  
+- Grafana dashboards (screenshots)  
+- Updated README (this file)  
+
+---
+
+## 🔐 Security & Constraints
+
+- ✅ 100% local execution  
+- ✅ No cloud services  
+- ✅ No credentials stored in clear text  
+- ✅ Fully reproducible environment  
+- ✅ Version-controlled configuration  
+
+---
+
+## 🎓 Skills Assessed (Eduxim)
+
+- Git & project structure  
+- Prometheus / Grafana / Loki / Promtail stack  
+- Metrics exposure and scraping  
+- Log aggregation and querying  
+- Dashboard relevance and clarity  
+
+---
+
+## 🏁 Conclusion
+
+This TP demonstrates a complete observability pipeline for a containerized application, aligned with modern cloud-native best practices.  
+The implemented stack provides full visibility into application health, performance, and behavior, enabling faster debugging, monitoring, and operational decision-making.
