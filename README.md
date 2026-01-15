@@ -706,37 +706,45 @@ The deployment is designed to be **idempotent** and can be executed multiple tim
 
 ## 🔵🟢 Blue/Green Deployment
 
-This project implements a **Blue/Green deployment strategy** using Docker Compose and an Nginx reverse proxy.
+This project implements a **Blue/Green deployment strategy** using **Docker Compose** and an **Nginx reverse proxy**.
 
-The goal is to deploy a new version of the application **without any visible downtime**, while keeping the ability to rollback instantly.
+The objective is to deploy a new version of the application **without any visible downtime**, while allowing an **instant rollback** if an issue is detected.
 
 ---
 
 ### 🧠 Principle
 
-- **Blue**: currently active version (receiving user traffic)
-- **Green**: inactive version (candidate for the next deployment)
+- **Blue**: version currently in production (receives user traffic)
+- **Green**: inactive version, used as a candidate for the next deployment
 
-Both versions can run **at the same time**, sharing the same PostgreSQL database.
+Both versions can run **simultaneously**, sharing the same PostgreSQL database.  
+Only one version is exposed to users at a time through the reverse proxy.
 
 ---
 
 ### 🌐 Role of the Reverse Proxy
 
-An **Nginx reverse proxy** is the single entry point for users:
+An **Nginx reverse proxy** acts as the single entry point for the application:
 
 - Public URL: `http://localhost:8080`
-- Routes traffic to:
-  - `app-back-blue` **or**
+- Routes traffic dynamically to:
+  - `app-back-blue`, or
   - `app-back-green`
 
-The active version is selected via a mounted configuration file:
+The active version is controlled via a mounted configuration file:
 
 ```
 nginx/conf.d/active.conf
 ```
 
-The proxy can be reloaded without restarting containers:
+Example:
+
+```nginx
+set $upstream app-back-blue:3000;
+```
+
+Switching the active version does **not** require stopping containers.  
+The proxy configuration can be reloaded at runtime:
 
 ```bash
 docker exec reverse-proxy nginx -s reload
@@ -746,11 +754,11 @@ docker exec reverse-proxy nginx -s reload
 
 ### 🚀 Deployment Flow
 
-1. Build & push Docker images via CI
-2. Deploy the new version on the inactive color (blue or green)
-3. Update proxy configuration to switch traffic
-4. Reload Nginx
-5. Rollback possible at any time by reverting the proxy config
+1. Docker images are **built and pushed** via the CI pipeline
+2. The new version is deployed on the **inactive color** (Blue or Green)
+3. The reverse proxy configuration is updated to point to the new version
+4. Nginx is reloaded without downtime
+5. A rollback can be performed instantly by reverting the proxy configuration
 
 ---
 
@@ -761,19 +769,35 @@ docker exec reverse-proxy nginx -s reload
                              \-> [Green]  (candidate version)
 ```
 
-- If **Blue** is active → deploy on **Green**
-- Once validated → switch proxy to **Green**
-- Rollback = switch proxy back to **Blue**
+- If **Blue** is active → deploy the new version on **Green**
+- Once validated → switch the proxy to **Green**
+- Rollback = switch the proxy back to **Blue**
+
+---
+
+### 🧪 Zero-Downtime Proof
+
+To demonstrate the absence of downtime during the switch, a continuous request loop is executed:
+
+```bash
+while true; do
+  curl http://localhost:8080/health
+  sleep 0.2
+done
+```
+
+The `/health` endpoint exposes the running version (`blue` or `green`), making the switch visible **without any request failure**, thus proving a zero-downtime deployment.
 
 ---
 
 ### ⚙️ CI/CD Integration
 
 - Docker images are built and pushed to **GitHub Container Registry (GHCR)**
-- Blue/Green deployment is handled by a dedicated deployment script
-- The Blue/Green deployment stage is executed automatically **on the `develop` branch**
-- A classic single-stack deployment is executed **on the `main` branch**
+- Images are tagged using the Git commit SHA
+- A dedicated **Blue/Green deployment stage** is executed on the `develop` branch
+- A classic single-stack deployment is executed on the `main` branch
 
-This setup allows:
-- Stable deployments on `main`
+This setup enables:
+- Stable and controlled deployments on `main`
 - Safe experimentation and near-instant rollback on `develop`
+
